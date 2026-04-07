@@ -4,40 +4,40 @@ import { getVideo, updateVideo, type Video } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
-import { getInMemoryURL } from "./assets";
+// import { getInMemoryURL } from "./assets";
 
 type Thumbnail = {
   data: ArrayBuffer;
   mediaType: string;
 };
 
-const videoThumbnails: Map<string, Thumbnail> = new Map();
-
 const MAX_UPLOAD_SIZE = 10 << 20
 
-export async function handlerGetThumbnail(cfg: ApiConfig, req: BunRequest) {
-  const { videoId } = req.params as { videoId?: string };
-  if (!videoId) {
-    throw new BadRequestError("Invalid video ID");
-  }
+// const videoThumbnails: Map<string, Thumbnail> = new Map();
 
-  const video = getVideo(cfg.db, videoId);
-  if (!video) {
-    throw new NotFoundError("Couldn't find video");
-  }
+// export async function handlerGetThumbnail(cfg: ApiConfig, req: BunRequest) {
+//   const { videoId } = req.params as { videoId?: string };
+//   if (!videoId) {
+//     throw new BadRequestError("Invalid video ID");
+//   }
 
-  const thumbnail = videoThumbnails.get(videoId);
-  if (!thumbnail) {
-    throw new NotFoundError("Thumbnail not found");
-  }
+//   const video = getVideo(cfg.db, videoId);
+//   if (!video) {
+//     throw new NotFoundError("Couldn't find video");
+//   }
 
-  return new Response(thumbnail.data, {
-    headers: {
-      "Content-Type": thumbnail.mediaType,
-      "Cache-Control": "no-store",
-    },
-  });
-}
+//   const thumbnail = videoThumbnails.get(videoId);
+//   if (!thumbnail) {
+//     throw new NotFoundError("Thumbnail not found");
+//   }
+
+//   return new Response(video.thumbnailURL, {
+//     headers: {
+//       "Content-Type": thumbnail.mediaType,
+//       "Cache-Control": "no-store",
+//     },
+//   });
+// }
 
 export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   const { videoId } = req.params as { videoId?: string };
@@ -78,17 +78,22 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new BadRequestError("Missing Content-Type for thumbnail");
   }
 
-  const buffer = await data.arrayBuffer();
-  if (!buffer) {
+  const fileData = await data.arrayBuffer();
+  if (!fileData) {
     throw new Error("Error reading file data");
   }
 
-  videoThumbnails.set(videoId, {
-    data: buffer, 
-    mediaType: mediaType
-  });
+  // videoThumbnails.set(videoId, {
+  //   data: fileData, 
+  //   mediaType: mediaType
+  // });
 
-  video.thumbnailURL = getInMemoryURL(cfg, videoId)
+  const buffer = Buffer.from(fileData);
+  const bufferString = buffer.toString("base64");
+  const dataUrl = `data:${mediaType};base64,${bufferString}`;
+
+  video.thumbnailURL = dataUrl;
+  // video.thumbnailURL = getInMemoryURL(cfg, videoId);
   updateVideo(cfg.db, video);
 
   return respondWithJSON(200, video);
