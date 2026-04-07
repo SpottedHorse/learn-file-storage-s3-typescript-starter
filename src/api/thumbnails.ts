@@ -4,6 +4,7 @@ import { getVideo, updateVideo, type Video } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import { getInMemoryURL } from "./assets";
 
 type Thumbnail = {
   data: ArrayBuffer;
@@ -49,34 +50,45 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
 
   console.log("uploading thumbnail for video", videoId, "by user", userID);
 
-  const formData = req.formData();
+  const video = await getVideo(cfg.db, videoId);
+  if (!video) {
+    throw new Error("Could not find video")
+  }
 
-  const data = (await formData).get('thumbnail');
+  if (video.userID !== userID) {
+    throw new UserForbiddenError("Not authorized to update this video");
+  }
+
+  const formData = await req.formData();
+
+  const data = formData.get('thumbnail');
 
   if (!(data instanceof File)) {
-    throw new BadRequestError('Bad file upload');
+    throw new BadRequestError('Thumbnail file missing');
   }
 
   if (data.size > MAX_UPLOAD_SIZE) {
-    throw new BadRequestError('File too big.');
+    throw new BadRequestError(
+      `Thumbnail file exceeds the maximum allowed size of 10MB`
+    );
   }
 
-  const mediaType = data.type
-  const buffer = await data.arrayBuffer()
-
-  if (getVideo(cfg.db, videoId)?.userID !== userID) {
-    throw new UserForbiddenError('video cannot be accessed');
+  const mediaType = data.type;
+  if (!mediaType) {
+    throw new BadRequestError("Missing Content-Type for thumbnail");
   }
 
-  videoThumbnails.set(videoId, {data: buffer, mediaType: mediaType})
-
-  const video = await getVideo(cfg.db, videoId);
-  if (!video) {
-    throw new Error("Something went wrong")
+  const buffer = await data.arrayBuffer();
+  if (!buffer) {
+    throw new Error("Error reading file data");
   }
 
-  video.thumbnailURL = `http://localhost:${cfg.port}/api/thumbnails/${videoId}`
-  
+  videoThumbnails.set(videoId, {
+    data: buffer, 
+    mediaType: mediaType
+  });
+
+  video.thumbnailURL = getInMemoryURL(cfg, videoId)
   updateVideo(cfg.db, video);
 
   return respondWithJSON(200, video);
