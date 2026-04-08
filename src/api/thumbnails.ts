@@ -4,6 +4,7 @@ import { getVideo, updateVideo, type Video } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import path from "path";
 // import { getInMemoryURL } from "./assets";
 
 type Thumbnail = {
@@ -88,11 +89,17 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   //   mediaType: mediaType
   // });
 
-  const buffer = Buffer.from(fileData);
-  const bufferString = buffer.toString("base64");
-  const dataUrl = `data:${mediaType};base64,${bufferString}`;
+  // const buffer = Buffer.from(fileData);
+  console.log(`mediaType: ${mediaType}`)
+  const filePath = path.join(cfg.assetsRoot, `${videoId}.${mediaType.split('/')[1]}`)
+  console.log(`filePath: ${filePath}`)
+  await Bun.write(`${filePath}`, fileData)
+  // const bufferString = buffer.toString("base64");
+  // const dataUrl = `data:${mediaType};base64,${bufferString}`;
 
-  video.thumbnailURL = dataUrl;
+  const thumbnail_url = path.join(`http://localhost:${cfg.port}`, filePath)
+
+  video.thumbnailURL = thumbnail_url;
   // video.thumbnailURL = getInMemoryURL(cfg, videoId);
   updateVideo(cfg.db, video);
 
